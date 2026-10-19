@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "antismash": {
+      "command": "python",
+      "args": ["-m", "antismash_mcp.server"],
+      "env": {
+        "ANTISMASH_MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
