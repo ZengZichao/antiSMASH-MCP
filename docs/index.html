@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>antiSMASH MCP Server — 次级代谢产物生物合成基因簇分析</title>
+    <meta name="description" content="基于 Model Context Protocol (MCP) 的 antiSMASH 服务器，实现次级代谢产物生物合成基因簇的自动化分析。">
+    <meta name="author" content="ZengZichao">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ===== Reset & Base ===== */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-text: #1a1a2e;
+            --color-text-secondary: #4a4a6a;
+            --color-text-muted: #76768a;
+            --color-primary: #1e3a5f;
+            --color-primary-light: #2c5282;
+            --color-accent: #8b5e83;
+            --color-border: #d8d8e0;
+            --color-border-light: #e8e8ee;
+            --color-bg: #ffffff;
+            --color-bg-soft: #f8f8fa;
+            --color-bg-code: #f4f4f8;
+            --color-bg-blockquote: #faf9f7;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --max-width: 820px;
+            --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            color: var(--color-text);
+            background: var(--color-bg);
+            line-height: 1.75;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ===== Typography ===== */
+        h1, h2, h3, h4, h5, h6 {
+            font-family: var(--font-serif);
+            font-weight: 600;
+            line-height: 1.3;
+            color: var(--color-text);
+        }
+
+        h1 { font-size: 2.2rem; }
+        h2 { font-size: 1.6rem; }
+        h3 { font-size: 1.25rem; }
+        h4 { font-size: 1.1rem; }
+
+        a {
+            color: var(--color-primary-light);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        a:hover {
+            color: var(--color-accent);
+            text-decoration: underline;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.875em;
+            background: var(--color-bg-code);
+            padding: 0.15em 0.35em;
+            border-radius: 4px;
+            color: #3d3d5c;
+        }
+
+        pre {
+            font-family: var(--font-mono);
+            background: var(--color-bg-code);
+            padding: 1rem 1.25rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid var(--color-border-light);
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            border-radius: 0;
+            color: inherit;
+        }
+
+        blockquote {
+            border-left: 3px solid var(--color-primary);
+            padding: 0.5rem 1.25rem;
+            margin: 1.25rem 0;
+            background: var(--color-bg-blockquote);
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+
+        ul, ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        li {
+            margin-bottom: 0.4rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.25rem 0;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        th {
+            font-weight: 600;
+            font-family: var(--font-sans);
+            color: var(--color-text);
+            background: var(--color-bg-soft);
+        }
+
+        tr:hover td {
+            background: var(--color-bg-soft);
+        }
+
+        /* ===== Layout ===== */
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* ===== Header / Hero ===== */
+        .hero {
+            background: var(--color-bg-soft);
+            border-bottom: 1px solid var(--color-border-light);
+            padding: 3.5rem 0 3rem;
+        }
+
+        .hero-inner {
+            text-align: center;
+        }
+
+        .hero-badges {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
+            border: 1px solid var(--color-border);
+            background: var(--color-bg);
+            color: var(--color-text-secondary);
+        }
+
+        .badge .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .badge.python .dot { background: #3776AB; }
+        .badge.version .dot { background: #1e3a5f; }
+        .badge.license .dot { background: #2ea043; }
+        .badge.mcp .dot { background: #8b5e83; }
+
+        .hero h1 {
+            font-size: 2.4rem;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.02em;
+        }
+
+        .hero .subtitle {
+            font-size: 1.15rem;
+            color: var(--color-text-secondary);
+            font-family: var(--font-serif);
+            font-style: italic;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+            line-height: 1.6;
+        }
+
+        .hero-links {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.6rem 1.4rem;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: #fff;
+            border-color: var(--color-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-light);
+            border-color: var(--color-primary-light);
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .btn-secondary {
+            background: var(--color-bg);
+            color: var(--color-text);
+        }
+
+        .btn-secondary:hover {
+            background: var(--color-bg-soft);
+            text-decoration: none;
+            border-color: var(--color-text-muted);
+        }
+
+        /* ===== Notice ===== */
+        .notice {
+            background: #fff9e6;
+            border: 1px solid #e8d96a;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin: 0 0 2rem 0;
+            font-size: 0.875rem;
+            color: #665500;
+        }
+
+        /* ===== Sections ===== */
+        section {
+            padding: 2.5rem 0;
+        }
+
+        section h2 {
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid var(--color-border-light);
+            position: relative;
+        }
+
+        section h2::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 50px;
+            height: 2px;
+            background: var(--color-primary);
+        }
+
+        /* ===== Feature Cards ===== */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .feature-card {
+            border: 1px solid var(--color-border-light);
+            border-radius: 8px;
+            padding: 1.25rem;
+            background: var(--color-bg);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .feature-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .feature-card .icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .feature-card h3 {
+            margin-bottom: 0.4rem;
+            font-size: 1.05rem;
+        }
+
+        .feature-card p {
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+            margin-bottom: 0;
+            line-height: 1.6;
+        }
+
+        /* ===== Tool List ===== */
+        .tool-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 1.5rem 0;
+        }
+
+        .tool-list li {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--color-border-light);
+            display: flex;
+            align-items: baseline;
+            gap: 0.75rem;
+        }
+
+        .tool-list li:last-child {
+            border-bottom: none;
+        }
+
+        .tool-list .tool-name {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--color-primary);
+            min-width: 180px;
+            flex-shrink: 0;
+        }
+
+        .tool-list .tool-desc {
+            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+        }
+
+        /* ===== TOC ===== */
+        .toc {
+            background: var(--color-bg-soft);
+            border: 1px solid var(--color-border-light);
+            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .toc h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--color-text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+            margin-bottom: 0;
+            columns: 2;
+            column-gap: 1.5rem;
+        }
+
+        .toc li {
+            margin-bottom: 0.3rem;
+            font-size: 0.875rem;
+        }
+
+        .toc a {
+            color: var(--color-text-secondary);
+        }
+
+        .toc a:hover {
+            color: var(--color-primary);
+        }
+
+        /* ===== Server Status / Stat Row ===== */
+        .stat-row {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin: 1.5rem 0;
+            padding: 1.25rem;
+            background: var(--color-bg-soft);
+            border-radius: 8px;
+            border: 1px solid var(--color-border-light);
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .stat-item .num {
+            font-family: var(--font-serif);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--color-primary);
+            display: block;
+            line-height: 1;
+            margin-bottom: 0.3rem;
+        }
+
+        .stat-item .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-muted);
+        }
+
+        /* ===== Footer ===== */
+        footer {
+            border-top: 1px solid var(--color-border-light);
+            padding: 2.5rem 0 3rem;
+            text-align: center;
+            color: var(--color-text-muted);
+            font-size: 0.85rem;
+            background: var(--color-bg-soft);
+        }
+
+        footer a {
+            color: var(--color-text-secondary);
+        }
+
+        footer .footer-links {
+            margin-bottom: 0.75rem;
+        }
+
+        footer .footer-links a {
+            margin: 0 0.5rem;
+        }
+
+        footer .citation {
+            font-family: var(--font-serif);
+            font-style: italic;
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+            max-width: 600px;
+            margin: 1rem auto 0;
+            line-height: 1.5;
+        }
+
+        /* ===== Code Block with Header ===== */
+        .code-block {
+            margin: 1.25rem 0;
+            border: 1px solid var(--color-border-light);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .code-block .code-header {
+            background: var(--color-bg-code);
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+            font-family: var(--font-sans);
+            font-weight: 500;
+            color: var(--color-text-muted);
+            border-bottom: 1px solid var(--color-border-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .code-block pre {
+            margin: 0;
+            border: none;
+            border-radius: 0;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 640px) {
+            html { font-size: 15px; }
+            .hero h1 { font-size: 1.8rem; }
+            .hero .subtitle { font-size: 1rem; }
+            .tool-list .tool-name { min-width: 100%; }
+            .toc ul { columns: 1; }
+            section { padding: 2rem 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== Hero ===== -->
+<header class="hero">
+    <div class="container hero-inner">
+        <div class="hero-badges">
+            <span class="badge version"><span class="dot"></span>v0.1.0</span>
+            <span class="badge python"><span class="dot"></span>Python 3.10+</span>
+            <span class="badge mcp"><span class="dot"></span>MCP Protocol</span>
+            <span class="badge license"><span class="dot"></span>MIT License</span>
+        </div>
+        <h1>antiSMASH MCP Server</h1>
+        <p class="subtitle">基于 Model Context Protocol 的次级代谢产物生物合成基因簇自动化分析服务器</p>
+        <div class="hero-links">
+            <a href="https://github.com/ZengZichao/antiSMASH-MCP" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                View on GitHub
+            </a>
+            <a href="#install" class="btn btn-secondary">快速开始</a>
+            <a href="https://github.com/ZengZichao/antiSMASH-MCP/blob/main/README.md" class="btn btn-secondary">中文文档</a>
+            <a href="https://github.com/ZengZichao/antiSMASH-MCP/blob/main/README_EN.md" class="btn btn-secondary">English Docs</a>
+        </div>
+    </div>
+</header>
+
+<!-- ===== Notice ===== -->
+<div class="container" style="padding-top: 2rem;">
+    <div class="notice">
+        <strong>⚠️ 非官方项目声明：</strong>这是一个社区开发的非官方 MCP 服务器，与 antiSMASH 官方团队无关。antiSMASH 是 <a href="https://antismash.secondarymetabolites.org/">antiSMASH 团队</a>的产品，本项目仅通过其公开 Web API 进行交互。
+    </div>
+</div>
+
+<!-- ===== Main Content ===== -->
+<main class="container" style="padding-top: 1rem;">
+
+    <!-- TOC -->
+    <nav class="toc">
+        <h3>目录 / Contents</h3>
+        <ul>
+            <li><a href="#overview">概述</a></li>
+            <li><a href="#features">功能特性</a></li>
+            <li><a href="#install">安装</a></li>
+            <li><a href="#config">配置</a></li>
+            <li><a href="#tools">可用工具</a></li>
+            <li><a href="#usage">使用示例</a></li>
+            <li><a href="#dev">开发指南</a></li>
+            <li><a href="#license">许可证与引用</a></li>
+        </ul>
+    </nav>
+
+    <!-- Overview -->
+    <section id="overview">
+        <h2>概述</h2>
+        <p>
+            <a href="https://antismash.secondarymetabolites.org/">antiSMASH</a>（antibiotics &amp; Secondary Metabolites Analysis Shell）是一个广泛使用的生物信息学工具，用于在基因组序列中识别次级代谢产物生物合成基因簇（BGCs）。antiSMASH 支持细菌、真菌和植物基因组分析，提供详细的基因簇类型、功能注释和比较分析结果。
+        </p>
+        <p>
+            本项目实现了一个 <a href="https://modelcontextprotocol.io/">Model Context Protocol (MCP)</a> 服务器，使 AI 助手（如 Claude）能够直接与 antiSMASH 数据库交互，实现次级代谢产物生物合成基因簇的自动化分析。
+        </p>
+        <div class="stat-row">
+            <div class="stat-item">
+                <span class="num">10</span>
+                <span class="label">MCP 工具</span>
+            </div>
+            <div class="stat-item">
+                <span class="num">3</span>
+                <span class="label">服务器类型</span>
+            </div>
+            <div class="stat-item">
+                <span class="num">3</span>
+                <span class="label">检测严格度</span>
+            </div>
+            <div class="stat-item">
+                <span class="num">10+</span>
+                <span class="label">额外功能</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+        <h2>功能特性</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <span class="icon">📤</span>
+                <h3>提交分析任务</h3>
+                <p>上传序列文件或使用 NCBI 登录号提交分析</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">📊</span>
+                <h3>查询任务状态</h3>
+                <p>检查任务是否在运行、排队或已完成</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">📋</span>
+                <h3>获取分析结果</h3>
+                <p>解析检测到的生物合成基因簇和区域信息</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">📥</span>
+                <h3>下载结果文件</h3>
+                <p>下载完整的分析结果 ZIP 压缩包</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">🖥️</span>
+                <h3>服务器状态查询</h3>
+                <p>检查 antiSMASH 服务器运行状态</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">⏳</span>
+                <h3>阻塞等待任务</h3>
+                <p>轮询等待任务完成，支持自定义间隔</p>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 2rem;">支持的 antiSMASH 服务器</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>服务器类型</th>
+                    <th>描述</th>
+                    <th>URL</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>bacteria</code></td>
+                    <td>细菌版本（默认）</td>
+                    <td>antismash.secondarymetabolites.org</td>
+                </tr>
+                <tr>
+                    <td><code>fungi</code></td>
+                    <td>真菌版本</td>
+                    <td>fungismash.secondarymetabolites.org</td>
+                </tr>
+                <tr>
+                    <td><code>plant</code></td>
+                    <td>植物版本</td>
+                    <td>plantismash.secondarymetabolites.org</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3 style="margin-top: 1.5rem;">检测严格度</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>严格度</th>
+                    <th>描述</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>strict</code></td>
+                    <td>严格模式：检测包含所有必需部分的完整基因簇</td>
+                </tr>
+                <tr>
+                    <td><code>relaxed</code></td>
+                    <td>宽松模式（默认）：检测缺少一个或多个功能部分的部分基因簇</td>
+                </tr>
+                <tr>
+                    <td><code>loose</code></td>
+                    <td>松散模式：使用更宽松的标准，可能包含更多假阳性结果</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Installation -->
+    <section id="install">
+        <h2>安装</h2>
+        <h3>前置条件</h3>
+        <ul>
+            <li>Python 3.10 或更高版本</li>
+            <li>pip 包管理器</li>
+        </ul>
+        <h3>从源码安装</h3>
+        <div class="code-block">
+            <div class="code-header"><span>bash</span></div>
+            <pre><code><span style="color: #76768a;"># 克隆仓库</span>
+git clone https://github.com/ZengZichao/antiSMASH-MCP.git
+cd antiSMASH-MCP
+
+<span style="color: #76768a;"># 安装包（推荐使用虚拟环境）</span>
+pip install -e .</code></pre>
+        </div>
+        <h3>依赖项</h3>
+        <p>以下依赖项会在安装时自动安装：</p>
+        <ul>
+            <li><code>mcp&gt;=1.0.0</code> — Model Context Protocol SDK</li>
+            <li><code>httpx&gt;=0.25.0</code> — 异步 HTTP 客户端</li>
+            <li><code>pydantic&gt;=2.0.0</code> — 数据验证</li>
+        </ul>
+    </section>
+
+    <!-- Configuration -->
+    <section id="config">
+        <h2>配置</h2>
+        <h3>环境变量</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>环境变量</th>
+                    <th>默认值</th>
+                    <th>描述</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>ANTISMASH_MCP_LOG_LEVEL</code></td>
+                    <td><code>INFO</code></td>
+                    <td>日志级别（DEBUG/INFO/WARNING/ERROR）</td>
+                </tr>
+                <tr>
+                    <td><code>ANTISMASH_MCP_SERVER</code></td>
+                    <td><code>bacteria</code></td>
+                    <td>默认 antiSMASH 服务器类型</td>
+                </tr>
+            </tbody>
+        </table>
+        <h3>直接运行</h3>
+        <div class="code-block">
+            <div class="code-header"><span>bash</span></div>
+            <pre><code><span style="color: #76768a;"># 使用默认配置运行</span>
+python -m antismash_mcp.server
+
+<span style="color: #76768a;"># 或者使用安装的命令行工具</span>
+antismash-mcp</code></pre>
+        </div>
+        <h3>Claude Desktop 配置</h3>
+        <p>macOS/Linux: <code>~/.config/claude/claude_desktop_config.json</code> &nbsp; Windows: <code>%APPDATA%\Claude\claude_desktop_config.json</code></p>
+        <div class="code-block">
+            <div class="code-header"><span>json</span></div>
+            <pre><code>{
+  "mcpServers": {
+    "antismash": {
+      "command": "python",
+      "args": ["-m", "antismash_mcp.server"],
+      "env": {
+        "ANTISMASH_MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}</code></pre>
+        </div>
+    </section>
+
+    <!-- Tools -->
+    <section id="tools">
+        <h2>可用工具</h2>
+        <p>本 MCP 服务器提供以下 <strong>10 个工具</strong>：</p>
+        <ul class="tool-list">
+            <li>
+                <span class="tool-name">submit_sequence</span>
+                <span class="tool-desc">提交序列文件到 antiSMASH 进行分析</span>
+            </li>
+            <li>
+                <span class="tool-name">submit_ncbi</span>
+                <span class="tool-desc">使用 NCBI 登录号提交分析任务</span>
+            </li>
+            <li>
+                <span class="tool-name">check_job_status</span>
+                <span class="tool-desc">检查任务状态（queued/running/done/error）</span>
+            </li>
+            <li>
+                <span class="tool-name">wait_for_job</span>
+                <span class="tool-desc">等待任务完成（阻塞操作）</span>
+            </li>
+            <li>
+                <span class="tool-name">get_job_results</span>
+                <span class="tool-desc">获取已完成任务的分析结果摘要</span>
+            </li>
+            <li>
+                <span class="tool-name">get_job_details</span>
+                <span class="tool-desc">获取任务的详细信息</span>
+            </li>
+            <li>
+                <span class="tool-name">download_results</span>
+                <span class="tool-desc">下载结果压缩包（ZIP 文件）到本地</span>
+            </li>
+            <li>
+                <span class="tool-name">get_server_status</span>
+                <span class="tool-desc">获取 antiSMASH 服务器状态</span>
+            </li>
+            <li>
+                <span class="tool-name">list_extra_features</span>
+                <span class="tool-desc">列出所有可用的额外功能及描述</span>
+            </li>
+            <li>
+                <span class="tool-name">get_example_url</span>
+                <span class="tool-desc">获取 antiSMASH 示例输出页面 URL</span>
+            </li>
+        </ul>
+    </section>
+
+    <!-- Usage -->
+    <section id="usage">
+        <h2>使用示例</h2>
+        <h3>场景一：提交并分析基因组序列</h3>
+        <div class="code-block">
+            <div class="code-header"><span>对话示例</span></div>
+            <pre><code>用户：帮我提交 NC_003888.3 到 antiSMASH 进行分析
+
+AI：好的，我正在使用 submit_ncbi 工具提交 NCBI 登录号 NC_003888.3 到 antiSMASH...
+    [调用 submit_ncbi 工具]
+    任务已提交！任务 ID: ABC12345
+    你可以在以下网址查看结果: https://antismash.secondarymetabolites.org/ABC12345
+
+用户：检查一下任务状态
+
+AI：[调用 check_job_status 工具]
+    任务目前正在运行中...</code></pre>
+        </div>
+        <h3>场景二：获取分析结果</h3>
+        <div class="code-block">
+            <div class="code-header"><span>对话示例</span></div>
+            <pre><code>用户：任务完成了吗？帮我看看结果
+
+AI：[调用 check_job_status 工具]
+    任务已完成！让我获取分析结果...
+    [调用 get_job_results 工具]
+
+    antiSMASH 分析结果：
+    - 检测到 12 个生物合成区域
+    - 基因簇类型：NRPS, PKS Type I, Terpene, Siderophore 等
+    - 详见结果页面: https://antismash.secondarymetabolites.org/ABC12345</code></pre>
+        </div>
+        <h3>场景三：下载结果</h3>
+        <div class="code-block">
+            <div class="code-header"><span>对话示例</span></div>
+            <pre><code>用户：把结果下载到 /home/user/results 目录
+
+AI：[调用 download_results 工具]
+    结果已成功下载到 /home/user/results/ABC12345.zip
+    文件大小: 15.3 MB</code></pre>
+        </div>
+    </section>
+
+    <!-- Development -->
+    <section id="dev">
+        <h2>开发指南</h2>
+        <h3>开发环境搭建</h3>
+        <div class="code-block">
+            <div class="code-header"><span>bash</span></div>
+            <pre><code><span style="color: #76768a;"># 克隆仓库</span>
+git clone https://github.com/ZengZichao/antiSMASH-MCP.git
+cd antiSMASH-MCP
+
+<span style="color: #76768a;"># 创建虚拟环境</span>
+python -m venv .venv
+source .venv/bin/activate  <span style="color: #76768a;"># Linux/macOS</span>
+<span style="color: #76768a;"># .venv\Scripts\activate  # Windows</span>
+
+<span style="color: #76768a;"># 安装开发依赖</span>
+pip install -e ".[dev]"</code></pre>
+        </div>
+        <h3>代码质量工具</h3>
+        <ul>
+            <li><strong>ruff</strong> — 代码格式化和 linting</li>
+            <li><strong>mypy</strong> — 类型检查</li>
+            <li><strong>pytest</strong> — 单元测试</li>
+        </ul>
+        <div class="code-block">
+            <div class="code-header"><span>bash</span></div>
+            <pre><code>ruff check src/     <span style="color: #76768a;"># Linting</span>
+mypy src/           <span style="color: #76768a;"># Type checking</span>
+pytest              <span style="color: #76768a;"># Run tests</span></code></pre>
+        </div>
+    </section>
+
+    <!-- License & Citation -->
+    <section id="license">
+        <h2>许可证与引用</h2>
+        <h3>许可证</h3>
+        <p>本项目使用 <a href="https://github.com/ZengZichao/antiSMASH-MCP/blob/main/LICENSE">MIT 许可证</a>。</p>
+        <h3>致谢</h3>
+        <ul>
+            <li><a href="https://antismash.secondarymetabolites.org/">antiSMASH</a> 团队提供的优秀生物信息学工具</li>
+            <li><a href="https://modelcontextprotocol.io/">Model Context Protocol</a> 提供的协议规范</li>
+        </ul>
+        <h3>引用</h3>
+        <p>如果您在研究中使用了基于本工具的 antiSMASH 分析结果，请引用 antiSMASH：</p>
+        <blockquote>
+            Blin, K., Shaw, S., Augustijn, H.E. et al. antiSMASH 7.0: new and improved predictions for detection, regulation, chemical structures and visualisation. Nucleic Acids Res. 51, W46–W50 (2023).
+        </blockquote>
+    </section>
+
+</main>
+
+<!-- ===== Footer ===== -->
+<footer>
+    <div class="container">
+        <div class="footer-links">
+            <a href="https://github.com/ZengZichao/antiSMASH-MCP">GitHub</a>
+            <a href="https://github.com/ZengZichao/antiSMASH-MCP/issues">Issues</a>
+            <a href="https://antismash.secondarymetabolites.org/">antiSMASH</a>
+            <a href="https://modelcontextprotocol.io/">MCP</a>
+        </div>
+        <p>© 2025 ZengZichao · MIT License</p>
+        <p class="citation">
+            This is an unofficial community project, not affiliated with the antiSMASH team.
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>
